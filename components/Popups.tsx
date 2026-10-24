@@ -3,7 +3,7 @@
 // The app's three small popups, all built on the shared Modal:
 // onboarding (first visit), settings (API keys), and "shared key is busy".
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Monitor, Moon, Sun } from "lucide-react";
 import Modal from "@/components/Modal";
@@ -158,23 +158,40 @@ const OFFLINE_STEPS = [
   { title: "Turn Offline on", text: "Replies now come from your own computer. No internet needed for the AI.", code: "Offline: on", Art: ToggleArt },
 ];
 
-export function OfflineGuide({ onClose }: { onClose: () => void }) {
-  const [status, setStatus] = useState<"idle" | "checking" | "ready" | "noModel" | "missing">("idle");
+type OllamaStatus = "checking" | "ready" | "noModel" | "missing";
 
-  async function check() {
+// Asks the server whether it can reach Ollama, and whether the model is there.
+async function checkOllama(): Promise<OllamaStatus> {
+  try {
+    const data = await (await fetch("/api/ollama-status")).json();
+    return data.available ? (data.hasModel ? "ready" : "noModel") : "missing";
+  } catch {
+    return "missing";
+  }
+}
+
+export function OfflineGuide({ onClose, onReady }: { onClose: () => void; onReady: () => void }) {
+  // Checks once as soon as the guide opens, and again on "Check again".
+  // When Ollama is ready, onReady switches Offline mode on.
+  const [status, setStatus] = useState<OllamaStatus>("checking");
+  useEffect(() => {
+    checkOllama().then((s) => {
+      setStatus(s);
+      if (s === "ready") onReady();
+    });
+  }, [onReady]);
+
+  function check() {
     setStatus("checking");
-    try {
-      const data = await (await fetch("/api/ollama-status")).json();
-      setStatus(data.available ? (data.hasModel ? "ready" : "noModel") : "missing");
-    } catch {
-      setStatus("missing");
-    }
+    checkOllama().then((s) => {
+      setStatus(s);
+      if (s === "ready") onReady();
+    });
   }
 
   const message = {
-    idle: "",
-    checking: "Checking…",
-    ready: "Ollama and Gemma 3 1B found. Offline mode is ready.",
+    checking: "Checking for Ollama on this computer…",
+    ready: "Ollama and Gemma 3 1B found. Offline mode is on.",
     noModel: "Ollama is running, but the model is missing. Run step 2.",
     missing: "Ollama isn't reachable from here. Offline only works when Rewise runs on your own computer (step 3).",
   }[status];
@@ -248,7 +265,7 @@ export function Settings({ keys, theme, onTheme, onSave, onClose }: SettingsProp
             <label htmlFor={`key-${r.id}`} className="mb-1.5 block text-sm font-medium">{r.label}</label>
             <input id={`key-${r.id}`} type="password" autoComplete="off" className={field} placeholder={r.placeholder}
               value={draft[r.id]} onChange={(e) => setDraft({ ...draft, [r.id]: e.target.value.trim() })} />
-            <a href={KEY_PAGES[r.id]} target="_blank" rel="noopener noreferrer" className={`${ghost} mt-2 inline-flex items-center gap-1.5 !py-1.5 text-xs`}>{r.cta}<ExternalLink className="size-3.5" aria-hidden /></a>
+            <a href={KEY_PAGES[r.id]} target="_blank" rel="noopener noreferrer" className={`${ghost} mt-2 inline-flex items-center gap-1.5 py-1.5! text-xs`}>{r.cta}<ExternalLink className="size-3.5" aria-hidden /></a>
           </div>
         ))}
       </div>

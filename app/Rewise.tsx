@@ -5,7 +5,7 @@
 // Popups (onboarding, settings, rate limit, history, flashcards) sit on top.
 // Everything is remembered in localStorage via useStored.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, History, Plus, Settings as SettingsIcon } from "lucide-react";
 import Flashcards from "@/components/Flashcards";
 import Mascot from "@/components/Mascot";
@@ -65,6 +65,13 @@ export default function Rewise() {
     document.documentElement.dataset.theme = resolved;
   }, [theme]);
 
+  // Offline was saved as "on" but Ollama isn't reachable here (e.g. opened
+  // the deployed site): switch back to online so chat and the mic keep working.
+  useEffect(() => {
+    if (!ready || !offline) return;
+    ollamaReady().then((ok) => { if (!ok) setOffline(false); });
+  }, [ready, offline, setOffline]);
+
   // Does the server have a speech key? If not, the mic only shows when the
   // user has added their own key in Settings.
   useEffect(() => {
@@ -96,6 +103,7 @@ export default function Rewise() {
   }, [busy]);
 
   const closePopup = () => setPopup("none");
+  const turnOfflineOn = useCallback(() => setOffline(true), [setOffline]);
   const settingsButton = (
     <button className={iconBtn} onClick={() => setPopup("settings")} aria-label="Settings" title="Settings">
       <SettingsIcon className="size-5" aria-hidden />
@@ -338,18 +346,12 @@ export default function Rewise() {
     );
   }
 
-  // Turning Offline on: if this server can't reach Ollama (always the case on
-  // the deployed site), show the setup guide so the user knows what to do.
-  async function toggleOffline() {
-    const next = !offline;
-    setOffline(next);
-    if (!next) return;
-    try {
-      const data = await (await fetch("/api/ollama-status")).json();
-      if (!data.available || !data.hasModel) setPopup("offline");
-    } catch {
-      setPopup("offline");
-    }
+  // Turning Offline on always opens the guide. The guide checks for Ollama and
+  // switches Offline on only if it's ready; otherwise (always the case on the
+  // deployed site) Rewise stays online.
+  function toggleOffline() {
+    if (offline) setOffline(false);
+    else setPopup("offline");
   }
 
   function newConcept() {
@@ -458,7 +460,7 @@ export default function Rewise() {
           onSave={(k) => { setGroqKey(k.groq); setSpeechmaticsKey(k.speechmatics); setElevenLabsKey(k.elevenlabs); }}
           onClose={closePopup} />
       )}
-      {popup === "offline" && <OfflineGuide onClose={closePopup} />}
+      {popup === "offline" && <OfflineGuide onClose={closePopup} onReady={turnOfflineOn} />}
       {popup === "rateLimit" && <RateLimited onSave={setGroqKey} onClose={closePopup} />}
       {popup === "history" && session && (
         <Modal title="Conversation" onClose={closePopup}>
@@ -487,3 +489,13 @@ export default function Rewise() {
 
 // Typed text + spoken text, with one space between them.
 const joinText = (typed: string, spoken: string) => [typed, spoken.trim()].filter(Boolean).join(" ");
+
+// Can the server reach Ollama with Gemma 3 1B downloaded? (see /api/ollama-status)
+async function ollamaReady(): Promise<boolean> {
+  try {
+    const data = await (await fetch("/api/ollama-status")).json();
+    return Boolean(data.available && data.hasModel);
+  } catch {
+    return false;
+  }
+}
