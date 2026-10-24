@@ -10,7 +10,7 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
 
 type Key = { name: string; id: string; value: string }; // name is safe to log, value never is
 type Tier = { model: string; label: string };
-type Target = { baseUrl: string; keys: Key[]; tiers: Tier[]; budgetMs: number };
+type Target = { baseUrl: string; keys: Key[]; tiers: Tier[]; budgetMs: number; attemptMs: number };
 
 // Ordered best-first. The last tier is a different model family, so a problem
 // specific to gpt-oss still leaves us something to answer with.
@@ -22,7 +22,6 @@ const GROQ_TIERS: Tier[] = [
 const OLLAMA_TIERS: Tier[] = [{ model: "gemma3:1b", label: "gemma3:1b local" }];
 
 const KEY_ENV_NAMES = ["LLM_KEY_1", "LLM_KEY_2"];
-const ATTEMPT_TIMEOUT_MS = 12_000;
 const MAX_COOLDOWN_MS = 15 * 60_000; // a bad retry-after header can't park a key forever
 
 // All model-specific parameters in one place. `answerTokens` is roughly how
@@ -94,7 +93,7 @@ async function attempt(target: Target, key: Key, tier: Tier, messages: ChatMessa
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key.value}` },
       body: JSON.stringify({ model: tier.model, messages, ...modelParams(tier.model, answerTokens) }),
-      signal: AbortSignal.timeout(Math.max(1, Math.min(ATTEMPT_TIMEOUT_MS, deadline - Date.now()))),
+      signal: AbortSignal.timeout(Math.max(1, Math.min(target.attemptMs, deadline - Date.now()))),
     });
     if (!res.ok) {
       console.error(`[llm] ${key.name} ${tier.model} -> ${res.status}: ${(await res.text()).slice(0, 300)}`);
@@ -120,14 +119,16 @@ async function attempt(target: Target, key: Key, tier: Tier, messages: ChatMessa
 function resolveTarget(opts: { offline?: boolean; userKey?: string }): Target {
   if (opts.offline) {
     const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
-    // Local CPU models are slow, especially on first load, so allow longer.
-    return { baseUrl, keys: [{ name: "OLLAMA", id: "OLLAMA", value: "ollama" }], tiers: OLLAMA_TIERS, budgetMs: 60_000 };
+    // A local CPU model can take 15-30s on its first reply (loading into
+    // memory), so one attempt may use almost the whole budget.
+    return { baseUrl, keys: [{ name: "OLLAMA", id: "OLLAMA", value: "ollama" }], tiers: OLLAMA_TIERS, budgetMs: 60_000, attemptMs: 55_000 };
   }
   const keys: Key[] = KEY_ENV_NAMES.filter((name) => process.env[name]) // skip unset env vars
     .map((name) => ({ name, id: name, value: process.env[name]! }));
   if (opts.userKey) keys.unshift({ name: "USER_KEY", id: `USER_KEY#${opts.userKey.slice(-6)}`, value: opts.userKey });
   const baseUrl = process.env.LLM_BASE_URL || "https://api.groq.com/openai/v1";
-  return { baseUrl, keys, tiers: GROQ_TIERS, budgetMs: 20_000 };
+  // Groq answers in ~1s; a 12s attempt cap leaves room to try the next key/tier.
+  return { baseUrl, keys, tiers: GROQ_TIERS, budgetMs: 20_000, attemptMs: 12_000 };
 }
 
 export async function chatComplete(

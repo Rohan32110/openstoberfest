@@ -40,6 +40,8 @@ export default function Rewise() {
   const [elevenLabsKey, setElevenLabsKey] = useStored("elevenlabsKey", "");
   const [theme, setTheme] = useStored<Theme>("theme", "system");
   const spokenBase = useRef(""); // what was typed before the mic started
+  const ignoreSpeech = useRef(false); // true after Send, so late transcript text can't refill the box
+  const [stopMic, setStopMic] = useState(0); // bump to tell the mic to stop
 
   const [nameDraft, setNameDraft] = useState("");
   const [concept, setConcept] = useState("");
@@ -161,7 +163,7 @@ export default function Rewise() {
             </section>
 
             {/* Right: who you're explaining to - pick one of three orbs */}
-            <section className="flex flex-col gap-4 md:pt-[5.5rem]">
+            <section className="flex flex-col gap-4 md:pt-22">
               <fieldset>
                 <legend className="mb-4 w-full text-center text-sm font-medium">Who are you explaining it to?</legend>
                 <div className="grid grid-cols-3 gap-2" role="radiogroup">
@@ -171,7 +173,7 @@ export default function Rewise() {
                       <button key={p.id} type="button" role="radio" aria-checked={active} onClick={() => setPersona(p.id)}
                         aria-label={`${p.name}: ${p.short}`}
                         className={`flex flex-col items-center gap-2 rounded-[28px] px-1 py-3 text-center transition ${focus} ${
-                          active ? "bg-white/[0.06]" : "opacity-60 hover:opacity-100"}`}>
+                          active ? "bg-white/6" : "opacity-60 hover:opacity-100"}`}>
                         <Mascot color={p.color} confusion={active ? 20 : 50} thinking={false} size={active ? "clamp(76px, 11dvh, 104px)" : "clamp(64px, 9dvh, 88px)"} />
                         <span className="font-semibold text-white">{p.name}</span>
                         <span className="text-xs leading-snug text-zinc-300">{p.short}</span>
@@ -180,7 +182,7 @@ export default function Rewise() {
                   })}
                 </div>
               </fieldset>
-              <p className="hidden rounded-3xl bg-white/[0.04] px-5 py-3 text-center text-sm leading-relaxed text-zinc-200 sm:block">
+              <p className="hidden rounded-3xl bg-white/4 px-5 py-3 text-center text-sm leading-relaxed text-zinc-200 sm:block">
                 <span className="font-semibold text-white">{chosen.name}</span> · {chosen.role}. {chosen.description}
               </p>
               <button className={primary} disabled={!concept.trim()}>
@@ -232,76 +234,77 @@ export default function Rewise() {
           </div>
         </header>
 
-        {/* Centre: orb, progress, and the latest exchange */}
-        {/* One group anchored near the top, input included, so the input is
-            never pushed off-screen (e.g. behind a taskbar) on any window size. */}
-        <main className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col overflow-y-auto px-4 text-center md:px-10">
-          <div className="flex w-full flex-col items-center gap-5 pb-4 pt-[3vh]">
-          <Mascot color={p.color} confusion={passed ? 0 : s.confusion} thinking={busy} size="clamp(110px, 20dvh, 190px)" />
+        {/* Centre: orb, progress and the latest exchange. Scrolls on its own if
+            it ever gets too tall, so the composer below always stays in view. */}
+        <main className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col items-center justify-center gap-5 px-4 py-6 text-center md:px-10">
+            <Mascot color={p.color} confusion={passed ? 0 : s.confusion} thinking={busy} size="clamp(100px, 19dvh, 180px)" />
 
-          <div className="w-full max-w-72">
-            <div className="mb-1.5 flex justify-between text-xs text-zinc-300">
-              <span>{passed ? `${p.name} gets it!` : `${p.name}'s understanding`}</span>
-              <span className="tabular-nums">{s.understanding}%</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-label="Understanding"
-              aria-valuenow={s.understanding} aria-valuemin={0} aria-valuemax={100}>
-              <div className="h-full rounded-full transition-all duration-700 ease-out"
-                style={{ width: `${s.understanding}%`, background: passed ? "var(--success)" : p.color }} />
-            </div>
-          </div>
-
-          {/* Points checklist: ticks off as the AI judges each point explained */}
-          {pointList.length > 0 && (
-            <ul className="flex max-w-2xl flex-wrap justify-center gap-1.5" aria-label="Points to cover">
-              {pointList.map((pt, i) => {
-                const done = s.covered?.includes(i);
-                return (
-                  <li key={i} className={`rounded-full border px-3 py-1 text-xs transition ${done ? "text-white" : "border-white/15 text-zinc-300"}`}
-                    style={done ? { borderColor: p.color, background: `color-mix(in srgb, ${p.color} 20%, transparent)` } : undefined}>
-                    {done ? "✓ " : ""}{pt}<span className="sr-only">{done ? " (covered)" : " (not covered yet)"}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          <div className="flex w-full max-w-3xl flex-col items-center gap-3" aria-live="polite">
-            {lastUser && <p className="line-clamp-2 text-sm text-zinc-400">You: “{lastUser.content}”</p>}
-            {busy ? (
-              <p key={tick} className="fade-in shimmer text-xl font-medium">{tick === 0 ? "Thinking…" : "Analyzing…"}</p>
-            ) : lastAi ? (
-              <p key={s.messages.length} className="fade-in text-xl leading-snug text-white md:text-2xl">{lastAi.content}</p>
-            ) : (
-              <p className="text-xl leading-snug text-zinc-200 md:text-2xl">
-                Explain <span className="font-medium text-white">{s.concept}</span> to {p.name} in your own words.
-              </p>
-            )}
-            {passed && !busy && (
-              <div className="mt-2 flex flex-wrap justify-center gap-2">
-                <button className={primary} onClick={makeFlashcards} disabled={cardsBusy}>
-                  {cardsBusy ? "Making flashcards…" : s.flashcards ? "Open flashcards" : "Make flashcards"}
-                </button>
-                <button className={ghost} onClick={newConcept}>Explain something new</button>
+            <div className="w-full max-w-72">
+              <div className="mb-1.5 flex justify-between text-xs text-zinc-300">
+                <span>{passed ? `${p.name} gets it!` : `${p.name}'s understanding`}</span>
+                <span className="tabular-nums">{s.understanding}%</span>
               </div>
-            )}
-          </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-label="Understanding"
+                aria-valuenow={s.understanding} aria-valuemin={0} aria-valuemax={100}>
+                <div className="h-full rounded-full transition-all duration-700 ease-out"
+                  style={{ width: `${s.understanding}%`, background: passed ? "var(--success)" : p.color }} />
+              </div>
+            </div>
 
-          {/* Input bar, directly under the conversation */}
-          <div className="w-full max-w-3xl pt-2 text-left">
+            {/* Points checklist: ticks off as the AI judges each point explained */}
+            {pointList.length > 0 && (
+              <ul className="flex max-w-2xl flex-wrap justify-center gap-1.5" aria-label="Points to cover">
+                {pointList.map((pt, i) => {
+                  const done = s.covered?.includes(i);
+                  return (
+                    <li key={i} className={`rounded-full border px-3 py-1 text-xs transition ${done ? "text-white" : "border-white/15 text-zinc-300"}`}
+                      style={done ? { borderColor: p.color, background: `color-mix(in srgb, ${p.color} 20%, transparent)` } : undefined}>
+                      {done ? "✓ " : ""}{pt}<span className="sr-only">{done ? " (covered)" : " (not covered yet)"}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <div className="flex w-full max-w-3xl flex-col items-center gap-3" aria-live="polite">
+              {lastUser && <p className="line-clamp-2 text-sm text-zinc-400">You: “{lastUser.content}”</p>}
+              {busy ? (
+                <p key={tick} className="fade-in shimmer text-xl font-medium">{tick === 0 ? "Thinking…" : "Analyzing…"}</p>
+              ) : lastAi ? (
+                <p key={s.messages.length} className="fade-in text-xl leading-snug text-white md:text-2xl">{lastAi.content}</p>
+              ) : (
+                <p className="text-xl leading-snug text-zinc-200 md:text-2xl">
+                  Explain <span className="font-medium text-white">{s.concept}</span> to {p.name} in your own words.
+                </p>
+              )}
+              {passed && !busy && (
+                <div className="mt-2 flex flex-wrap justify-center gap-2">
+                  <button className={primary} onClick={makeFlashcards} disabled={cardsBusy}>
+                    {cardsBusy ? "Making flashcards…" : s.flashcards ? "Open flashcards" : "Make flashcards"}
+                  </button>
+                  <button className={ghost} onClick={newConcept}>Explain something new</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+
+        {/* Composer, pinned to the bottom like ChatGPT / Claude */}
+        <footer className="mx-auto w-full max-w-3xl shrink-0 px-4 pb-3 pt-1">
           {error && <p role="alert" className="mb-2 text-center text-sm text-red-300">{error}</p>}
-          <div className="mb-1.5 flex h-4 items-center justify-between px-4 text-xs text-zinc-400">
+          <div className="mb-1.5 flex h-4 items-center justify-between px-5 text-xs text-zinc-400">
             <span aria-label="Time spent on this explanation" className="tabular-nums">{composing || seconds > 0 ? `⏱ ${timer}` : ""}</span>
             <span>{lastAi?.model ? `answered by ${lastAi.model}` : ""}</span>
           </div>
           <form onSubmit={(e) => { e.preventDefault(); send(); }}
-            className="flex items-end gap-1 rounded-[28px] border border-white/10 bg-surface p-1.5 pl-5">
+            className="flex items-end gap-1.5 rounded-[28px] border border-white/10 bg-surface p-2 pl-5 shadow-lg shadow-black/20 transition focus-within:border-white/25">
             <label htmlFor="explain" className="sr-only">Your explanation</label>
             <textarea id="explain" rows={1} value={draft} disabled={busy} readOnly={mic !== "idle"} maxLength={4000}
-              placeholder={mic === "recording" ? "Listening…" : mic === "transcribing" ? "Transcribing…" : `Explain it to ${p.name}…`}
+              placeholder={mic === "recording" ? "Listening… (stops after 5s of silence)" : mic === "transcribing" ? "Finishing…" : `Explain it to ${p.name}…`}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              className="max-h-32 min-h-10 flex-1 resize-none self-center bg-transparent py-2 text-base outline-none field-sizing-content placeholder:text-zinc-400" />
+              className="max-h-40 min-h-10 flex-1 resize-none self-center bg-transparent py-2 text-base leading-6 outline-none field-sizing-content placeholder:text-zinc-400" />
             {micVisible && (
               <>
                 <button type="button" onClick={() => setSpeechLang(speechLang === "en" ? "bn" : "en")}
@@ -310,11 +313,11 @@ export default function Rewise() {
                   className={`h-10 shrink-0 rounded-full px-2.5 text-xs text-zinc-300 transition hover:bg-white/10 hover:text-white ${focus}`}>
                   {speechLang === "en" ? "EN" : "বাং"}
                 </button>
-                <MicButton language={speechLang} keyHeaders={keyHeaders} disabled={busy}
+                <MicButton language={speechLang} keyHeaders={keyHeaders} disabled={busy} stopSignal={stopMic}
                   onStateChange={setMic}
-                  onStart={() => { spokenBase.current = draft.trim(); setError(""); }}
-                  onLive={(text) => setDraft(joinText(spokenBase.current, text))}
-                  onText={(text) => setDraft(joinText(spokenBase.current, text))}
+                  onStart={() => { spokenBase.current = draft.trim(); ignoreSpeech.current = false; setError(""); }}
+                  onLive={(text) => { if (!ignoreSpeech.current) setDraft(joinText(spokenBase.current, text)); }}
+                  onText={(text) => { if (!ignoreSpeech.current) setDraft(joinText(spokenBase.current, text)); }}
                   onError={setError} />
               </>
             )}
@@ -323,9 +326,12 @@ export default function Rewise() {
               <ArrowUp className="size-5" strokeWidth={2.4} aria-hidden />
             </button>
           </form>
-          </div>
-          </div>
-        </main>
+          <p className="mt-2 text-center text-[11px] text-zinc-400">
+            {offline
+              ? "Offline: replies come from Gemma 3 1B running on this computer via Ollama. Voice input is off."
+              : "Rewise can make mistakes. Check important facts against your course material."}
+          </p>
+        </footer>
       </div>
     );
   }
@@ -342,6 +348,12 @@ export default function Rewise() {
   async function send() {
     const text = draft.trim();
     if (!text || busy || !session) return;
+    // Sending while the mic is still on: stop it and drop any words that
+    // arrive afterwards, so the box stays empty for the next answer.
+    if (mic !== "idle") {
+      ignoreSpeech.current = true;
+      setStopMic((n) => n + 1);
+    }
     const before = session;
     const messages = [...before.messages, { role: "user" as const, content: text }];
     const started = Date.now();

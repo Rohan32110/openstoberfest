@@ -19,24 +19,79 @@ const KEY_PAGES = {
 };
 
 // ---------- Onboarding ----------
+// Small animated pictures, one per step. Plain SVG + CSS (see .ob-* in
+// globals.css); the animation only runs if the user allows motion.
+
+// 1. A confused orb with question marks floating up out of it.
+function ConfusedArt() {
+  return (
+    <svg viewBox="0 0 120 72" className="h-full w-full" aria-hidden>
+      <defs>
+        <radialGradient id="ob-orb" cx="40%" cy="35%">
+          <stop offset="0%" stopColor="#FCD9A0" />
+          <stop offset="60%" stopColor="#EF9F27" />
+          <stop offset="100%" stopColor="#A86A12" />
+        </radialGradient>
+      </defs>
+      <circle cx="60" cy="44" r="22" fill="url(#ob-orb)" className="ob-breathe" />
+      <text x="84" y="26" className="ob-float" fontSize="14" fontWeight="700" fill="currentColor">?</text>
+      <text x="30" y="30" className="ob-float ob-delay-1" fontSize="11" fontWeight="700" fill="currentColor">?</text>
+      <text x="74" y="16" className="ob-float ob-delay-2" fontSize="9" fontWeight="700" fill="currentColor">?</text>
+    </svg>
+  );
+}
+
+// 2. You explain, it replies with "typing" dots, and the bar fills up.
+function ChatArt() {
+  return (
+    <svg viewBox="0 0 120 72" className="h-full w-full" aria-hidden>
+      <rect x="44" y="6" width="66" height="16" rx="8" fill="currentColor" opacity="0.18" />
+      <rect x="10" y="28" width="48" height="16" rx="8" fill="currentColor" opacity="0.1" />
+      <circle cx="24" cy="36" r="2.5" fill="currentColor" className="ob-dot" />
+      <circle cx="34" cy="36" r="2.5" fill="currentColor" className="ob-dot ob-delay-1" />
+      <circle cx="44" cy="36" r="2.5" fill="currentColor" className="ob-dot ob-delay-2" />
+      <rect x="10" y="56" width="100" height="5" rx="2.5" fill="currentColor" opacity="0.15" />
+      <rect x="10" y="56" width="100" height="5" rx="2.5" fill="#1D9E75" className="ob-fill" />
+    </svg>
+  );
+}
+
+// 3. A flashcard flipping from the question side ("?") to the answer side (tick).
+function CardArt() {
+  return (
+    <svg viewBox="0 0 120 72" className="h-full w-full" aria-hidden>
+      <g className="ob-flip">
+        <rect x="34" y="8" width="52" height="56" rx="10" fill="#534AB7" fillOpacity="0.35" stroke="#8C84E0" strokeWidth="1.5" />
+        <text x="60" y="45" textAnchor="middle" fontSize="24" fontWeight="700" fill="currentColor" className="ob-front">?</text>
+        <path d="M48 37l8 8 16-17" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="ob-back" />
+      </g>
+    </svg>
+  );
+}
+
 const STEPS = [
-  { title: "What Rewise is", text: "A study partner that is confused on purpose. You teach it a topic, and it tells you where your explanation falls apart." },
-  { title: "How it works", text: "Pick a topic and who you're explaining to. Type or speak your explanation. They ask follow-up questions, and the bar shows how well they understand." },
-  { title: "Why it helps", text: "The Feynman technique: if you can't explain it simply, you don't really know it yet. At the end, get flashcards that fix anything you got wrong." },
+  { title: "What Rewise is", text: "A study buddy that acts confused on purpose. You teach it, and it shows you what you missed.", Art: ConfusedArt },
+  { title: "How it works", text: "Pick a topic and who you’re teaching. Type or speak. It asks questions, and the bar shows how well it gets it.", Art: ChatArt },
+  { title: "Why it helps", text: "If you can’t explain it simply, you don’t know it yet. At the end, get flashcards for what you got wrong.", Art: CardArt },
 ];
 
 export function Onboarding({ onClose }: { onClose: () => void }) {
   return (
-    <Modal title="Welcome to Rewise" onClose={onClose}>
-      <div className="space-y-2.5">
-        {STEPS.map((s, i) => (
-          <div key={s.title} className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-semibold"><span className="mr-2 text-zinc-400">{i + 1}</span>{s.title}</p>
-            <p className="mt-1 text-sm leading-relaxed text-zinc-300">{s.text}</p>
+    <Modal title="Welcome to Rewise" onClose={onClose} wide>
+      <div className="grid gap-3 md:grid-cols-3">
+        {STEPS.map(({ title, text, Art }, i) => (
+          <div key={title} className="rounded-3xl border border-white/10 bg-white/3 p-5">
+            <div className="mb-4 h-20 rounded-2xl bg-white/4 p-2 text-zinc-200">
+              <Art />
+            </div>
+            <p className="text-sm font-semibold"><span className="mr-2 text-zinc-400">{i + 1}</span>{title}</p>
+            <p className="mt-1 text-sm leading-relaxed text-zinc-300">{text}</p>
           </div>
         ))}
       </div>
-      <button className={`${primary} mt-4 w-full`} onClick={onClose}>Got it</button>
+      <div className="mt-5 flex justify-center">
+        <button className={`${primary} w-full md:w-56`} onClick={onClose}>Got it</button>
+      </div>
     </Modal>
   );
 }

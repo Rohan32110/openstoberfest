@@ -6,6 +6,7 @@
 // from /api/speech-token, so our real key never reaches the browser.
 // Fallback: if live mode can't start, record the clip and send it to
 // /api/transcribe (Speechmatics batch, then ElevenLabs) when you stop.
+// Either way, recording stops by itself after 5 seconds of silence.
 
 import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, Mic, Square } from "lucide-react";
@@ -21,23 +22,33 @@ type Props = {
   onText: (text: string) => void; // final transcript
   onError: (message: string) => void;
   onStateChange: (state: MicState) => void;
+  stopSignal: number; // the parent bumps this to stop recording (e.g. on Send)
 };
 
 const MAX_SECONDS = 90;
+const SILENCE_MS = 5000; // stop after this long without speech
+const SPEECH_LEVEL = 0.015; // mic loudness (RMS) above this counts as speaking
 const REALTIME_URL = "wss://eu2.rt.speechmatics.com/v2";
 
-export default function MicButton({ language, keyHeaders, disabled, onStart, onLive, onText, onError, onStateChange }: Props) {
+export default function MicButton({ language, keyHeaders, disabled, onStart, onLive, onText, onError, onStateChange, stopSignal }: Props) {
   const [state, setState] = useState<MicState>("idle");
   const stopRef = useRef<() => void>(() => {});
   const cleanupRef = useRef<() => void>(() => {});
+  const recordingRef = useRef(false);
 
   function update(next: MicState) {
+    recordingRef.current = next === "recording";
     setState(next);
     onStateChange(next);
   }
 
   // If the component goes away mid-recording, release the microphone.
   useEffect(() => () => cleanupRef.current(), []);
+
+  // The parent asked us to stop (it sent the message while we were listening).
+  useEffect(() => {
+    if (stopSignal && recordingRef.current) stopRef.current();
+  }, [stopSignal]);
 
   async function start() {
     let stream: MediaStream;
@@ -53,8 +64,10 @@ export default function MicButton({ language, keyHeaders, disabled, onStart, onL
     onStart();
     update("recording");
     const autoStop = setTimeout(() => stopRef.current(), MAX_SECONDS * 1000);
+    const stopWatching = watchSilence(stream, () => stopRef.current());
     const releaseMic = () => {
       clearTimeout(autoStop);
+      stopWatching();
       stream.getTracks().forEach((t) => t.stop());
     };
     cleanupRef.current = releaseMic;
@@ -150,6 +163,7 @@ export default function MicButton({ language, keyHeaders, disabled, onStart, onL
       processor.connect(audio.destination); // required for the processor to run; it outputs silence
 
       stopRef.current = () => {
+        if (audioStopped) return; // already stopping (silence and a tap can both fire)
         stopAudio();
         update("transcribing");
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ message: "EndOfStream", last_seq_no: chunks }));
@@ -213,4 +227,36 @@ export default function MicButton({ language, keyHeaders, disabled, onStart, onL
       )}
     </button>
   );
+}
+
+// Calls onSilence once the mic has been quiet for SILENCE_MS. It measures the
+// loudness (RMS) of the raw audio four times a second; any sound above
+// SPEECH_LEVEL resets the clock. Returns a function that stops watching.
+function watchSilence(stream: MediaStream, onSilence: () => void): () => void {
+  const audio = new AudioContext();
+  const analyser = audio.createAnalyser();
+  analyser.fftSize = 2048;
+  audio.createMediaStreamSource(stream).connect(analyser);
+  const samples = new Float32Array(analyser.fftSize);
+  let lastSpeech = Date.now();
+
+  const id = setInterval(() => {
+    analyser.getFloatTimeDomainData(samples);
+    let sum = 0;
+    for (const v of samples) sum += v * v;
+    if (Math.sqrt(sum / samples.length) > SPEECH_LEVEL) {
+      lastSpeech = Date.now();
+    } else if (Date.now() - lastSpeech > SILENCE_MS) {
+      clearInterval(id);
+      onSilence();
+    }
+  }, 250);
+
+  let stopped = false;
+  return () => {
+    if (stopped) return; // may be called from more than one place
+    stopped = true;
+    clearInterval(id);
+    audio.close();
+  };
 }

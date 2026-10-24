@@ -27,12 +27,12 @@ export const PERSONAS: Persona[] = [
   {
     id: "friend",
     name: "Senior",
-    role: "A sharp senior from another department",
+    role: "A sharp senior from your department",
     short: "Skips basics. Asks how it works.",
     description: "Skips the basics and pushes on how it actually works. Great for testing real understanding.",
     color: "#1D9E75",
     character:
-      "Senior, a sharp, informal final-year student from a different department. You skip the obvious basics and push on the most interesting part, asking how it actually works.",
+      "Senior, a sharp, informal final-year student from the same department. You skip the obvious basics and push on the most interesting part, asking how it actually works.",
   },
   {
     id: "professor",

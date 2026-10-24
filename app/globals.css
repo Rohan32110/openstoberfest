@@ -175,3 +175,56 @@ body {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: none; }
 }
+
+/* ---------- Onboarding illustrations ---------- */
+/* SVG parts animate around their own centre. */
+.ob-breathe, .ob-flip, .ob-float, .ob-dot { transform-box: fill-box; transform-origin: center; }
+.ob-front { opacity: 0; }
+.ob-fill { transform-box: fill-box; transform-origin: left center; transform: scaleX(0.8); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .ob-breathe { animation: breathe 3s ease-in-out infinite; }
+  .ob-float { animation: ob-float 2.4s ease-out infinite; opacity: 0; }
+  .ob-dot { animation: ob-dot 1.2s ease-in-out infinite; }
+  .ob-fill { animation: ob-fill 3.6s ease-in-out infinite; }
+  .ob-flip { animation: ob-flip 3.2s ease-in-out infinite; }
+  .ob-front { animation: ob-front 3.2s step-end infinite; }
+  .ob-back { animation: ob-back 3.2s step-end infinite; }
+  .ob-delay-1 { animation-delay: 0.4s; }
+  .ob-delay-2 { animation-delay: 0.8s; }
+}
+
+/* A "?" drifts up and fades out. */
+@keyframes ob-float {
+  0% { opacity: 0; transform: translateY(6px); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+/* Typing dots bounce one after another. */
+@keyframes ob-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+/* The understanding bar fills, pauses, and resets. */
+@keyframes ob-fill {
+  0% { transform: scaleX(0.05); }
+  70%, 90% { transform: scaleX(0.85); }
+  100% { transform: scaleX(0.05); }
+}
+/* The card squashes flat and opens again (a flip without mirroring the tick),
+   swapping the "?" side for the tick side at the flat moment. */
+@keyframes ob-flip {
+  0%, 30%, 60%, 85% { transform: scaleX(1); }
+  45%, 95% { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
+}
+@keyframes ob-front {
+  0% { opacity: 1; }
+  45% { opacity: 0; }
+  95% { opacity: 1; }
+}
+@keyframes ob-back {
+  0% { opacity: 0; }
+  45% { opacity: 1; }
+  95% { opacity: 0; }
+}

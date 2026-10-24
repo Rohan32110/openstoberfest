@@ -88,7 +88,7 @@ export default function SyllabusPicker({ selected, onPick }: { selected: string;
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)}
-        className="group flex w-full items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] py-2 pl-2 pr-5 text-left transition hover:border-white/25 hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-white">
+        className="group flex w-full items-center gap-3 rounded-full border border-white/10 bg-white/3 py-2 pl-2 pr-5 text-left transition hover:border-white/25 hover:bg-white/6 focus-visible:outline-2 focus-visible:outline-white">
         <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white/10 text-white" aria-hidden>
           <BookOpen className="size-5" />
         </span>
@@ -102,7 +102,7 @@ export default function SyllabusPicker({ selected, onPick }: { selected: string;
   }
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-3">
+    <div className="rounded-3xl border border-white/10 bg-white/3 p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="flex items-center gap-2 text-sm font-medium text-white"><BookOpen className="size-4" aria-hidden />From your syllabus</span>
         <button type="button" onClick={() => setOpen(false)} className="rounded-full px-2 text-xs text-zinc-300 hover:text-white">Hide</button>

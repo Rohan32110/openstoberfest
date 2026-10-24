@@ -69,6 +69,9 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("[flashcards]", err);
     const rateLimited = err instanceof LLMBusyError && err.rateLimited;
-    return Response.json({ error: "The AI is busy right now. Try again in a moment.", rateLimited }, { status: 503 });
+    const error = body.offline
+      ? "Offline mode needs Ollama running on this computer, so it only works when you run Rewise locally. Turn Offline off to use the online AI."
+      : "The AI is busy right now. Try again in a moment.";
+    return Response.json({ error, rateLimited }, { status: 503 });
   }
 }

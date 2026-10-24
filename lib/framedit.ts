@@ -12,14 +12,17 @@ const cache = new Map<string, { at: number; data: unknown }>(); // per server in
 
 export const isDepartment = (v: string | null): v is string => v !== null && (DEPARTMENTS as readonly string[]).includes(v);
 export const isSemester = (v: string | null) => v !== null && /^[1-8]$/.test(v);
+// Env values pasted into a dashboard often pick up spaces, newlines or quotes.
+const clean = (v: string | undefined) => (v ?? "").trim().replace(/^["']|["']$/g, "");
+
 export const isCourseId = (v: string | null) => v !== null && /^[1-9]\d{0,9}$/.test(v);
 
 // Calls Framedit with a 15s timeout. Returns the JSON on a 200, otherwise null.
 // Only successful answers are cached; failures are retried on the next request.
 // `label` ("courses" / "syllabus") is all that goes in logs - never the key.
 export async function frameditGet(label: string, params: URLSearchParams): Promise<unknown | null> {
-  const base = process.env.FRAMEDIT_API_URL?.replace(/\/+$/, ""); // tolerate a trailing slash
-  const key = process.env.FRAMEDIT_EXPORT_KEY;
+  const base = clean(process.env.FRAMEDIT_API_URL).replace(/\/+$/, ""); // tolerate a trailing slash
+  const key = clean(process.env.FRAMEDIT_EXPORT_KEY);
   if (!base || !key) {
     console.warn(`[framedit] ${label} not configured`);
     return null;
