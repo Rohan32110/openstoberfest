@@ -58,6 +58,9 @@ export function useStored<T>(key: string, initial: T) {
 
 export type Msg = { role: "user" | "assistant"; content: string; model?: string };
 
+// A study card made from the user's explanation; `fix` explains a mistake.
+export type Card = { front: string; back: string; fix?: string };
+
 // One study session = one concept. Starting a new concept replaces it,
 // which is what resets the progress bar.
 export type Session = {
@@ -67,4 +70,6 @@ export type Session = {
   messages: Msg[];
   understanding: number;
   confusion: number;
+  flashcards?: Card[]; // saved so reopening them doesn't call the AI again
+  covered?: number[]; // indexes of "points to cover" the user has explained
 };

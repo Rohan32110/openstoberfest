@@ -25,14 +25,16 @@ const KEY_ENV_NAMES = ["LLM_KEY_1", "LLM_KEY_2"];
 const ATTEMPT_TIMEOUT_MS = 12_000;
 const MAX_COOLDOWN_MS = 15 * 60_000; // a bad retry-after header can't park a key forever
 
-// All model-specific parameters in one place.
-function modelParams(model: string): Record<string, unknown> {
+// All model-specific parameters in one place. `answerTokens` is roughly how
+// long the visible answer can be (short chat reply vs. a set of flashcards).
+function modelParams(model: string, answerTokens: number): Record<string, unknown> {
   // gpt-oss "thinks" before answering and those hidden tokens count toward
-  // max_tokens, so it needs headroom or it returns empty content.
-  if (model.startsWith("openai/gpt-oss")) return { reasoning_effort: "medium", max_tokens: 2048 };
-  if (model.startsWith("qwen/")) return { reasoning_effort: "none", max_tokens: 600 };
+  // max_tokens, so it needs headroom or it returns empty content. Low effort
+  // keeps replies fast; the task (asking one good question) doesn't need more.
+  if (model.startsWith("openai/gpt-oss")) return { reasoning_effort: "low", max_tokens: answerTokens + 1024 };
+  if (model.startsWith("qwen/")) return { reasoning_effort: "none", max_tokens: answerTokens };
   // Local gemma: tiny model that forgets the JSON format, so force JSON mode.
-  return { max_tokens: 400, response_format: { type: "json_object" } };
+  return { max_tokens: answerTokens, response_format: { type: "json_object" } };
 }
 
 // ---- Ledger: in-memory, per server instance, advisory only. ----
@@ -86,12 +88,12 @@ export class LLMBusyError extends Error {
 
 type Attempt = { ok: true; content: string } | { ok: false; status: number; retryAfter?: string | null };
 
-async function attempt(target: Target, key: Key, tier: Tier, messages: ChatMessage[], deadline: number): Promise<Attempt> {
+async function attempt(target: Target, key: Key, tier: Tier, messages: ChatMessage[], deadline: number, answerTokens: number): Promise<Attempt> {
   try {
     const res = await fetch(`${target.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key.value}` },
-      body: JSON.stringify({ model: tier.model, messages, ...modelParams(tier.model) }),
+      body: JSON.stringify({ model: tier.model, messages, ...modelParams(tier.model, answerTokens) }),
       signal: AbortSignal.timeout(Math.max(1, Math.min(ATTEMPT_TIMEOUT_MS, deadline - Date.now()))),
     });
     if (!res.ok) {
@@ -130,8 +132,9 @@ function resolveTarget(opts: { offline?: boolean; userKey?: string }): Target {
 
 export async function chatComplete(
   messages: ChatMessage[],
-  opts: { offline?: boolean; userKey?: string } = {},
+  opts: { offline?: boolean; userKey?: string; answerTokens?: number } = {},
 ): Promise<{ content: string; model: string }> {
+  const answerTokens = opts.answerTokens ?? 400;
   const target = resolveTarget(opts);
   const deadline = Date.now() + target.budgetMs;
   let saw429 = false;
@@ -148,7 +151,7 @@ export async function chatComplete(
       if (backoffMs && Date.now() + backoffMs < deadline) await new Promise((r) => setTimeout(r, backoffMs));
       backoffMs = backoffMs ? backoffMs * 2 : 1000;
 
-      const result = await attempt(target, key, tier, messages, deadline);
+      const result = await attempt(target, key, tier, messages, deadline, answerTokens);
       if (result.ok) return { content: result.content, model: tier.label };
 
       if (result.status === 429) {
