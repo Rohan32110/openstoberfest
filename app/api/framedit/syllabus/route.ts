@@ -29,8 +29,9 @@ export async function GET(request: Request) {
     return Response.json({ error: "Choose a course or department." }, { status: 400 });
   }
 
-  const data = (await frameditGet("syllabus", params)) as { syllabi?: Syllabus[] } | null;
-  if (data === null) return Response.json({ topics: [], unavailable: true });
+  const result = await frameditGet("syllabus", params);
+  if (!result.ok) return Response.json({ topics: [], unavailable: true, reason: result.reason });
+  const data = (result.data ?? {}) as { syllabi?: Syllabus[] };
 
   const topics = new Set<string>();
   const rows = Array.isArray(data.syllabi) ? data.syllabi : [];

@@ -228,3 +228,34 @@ body {
   45% { opacity: 1; }
   95% { opacity: 0; }
 }
+
+/* Offline guide pictures */
+.ob-drop, .ob-knob, .ob-track { transform-box: fill-box; transform-origin: center; }
+.ob-knob { transform: translateX(32px); }
+@media (prefers-reduced-motion: no-preference) {
+  .ob-drop { animation: ob-drop 1.6s ease-in-out infinite; }
+  .ob-blink { animation: ob-blink 1s step-end infinite; }
+  .ob-knob { animation: ob-knob 2.6s ease-in-out infinite; }
+  .ob-track { animation: ob-track 2.6s ease-in-out infinite; }
+}
+/* Arrow drops into the tray. */
+@keyframes ob-drop {
+  0% { transform: translateY(-6px); opacity: 0; }
+  30% { opacity: 1; }
+  70%, 100% { transform: translateY(4px); opacity: 1; }
+}
+/* Terminal cursor. */
+@keyframes ob-blink {
+  50% { opacity: 0; }
+}
+/* Switch slides on, holds, slides off. */
+@keyframes ob-knob {
+  0%, 15% { transform: translateX(0); }
+  40%, 85% { transform: translateX(32px); }
+  100% { transform: translateX(0); }
+}
+@keyframes ob-track {
+  0%, 15% { opacity: 0.3; }
+  40%, 85% { opacity: 1; }
+  100% { opacity: 0.3; }
+}

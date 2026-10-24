@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   if (department) params.set("department", department);
   if (semester) params.set("semester", semester);
 
-  const data = await frameditGet("courses", params);
-  if (data === null) return Response.json({ semesters: [], unavailable: true });
-  return Response.json(data);
+  const result = await frameditGet("courses", params);
+  if (!result.ok) return Response.json({ semesters: [], unavailable: true, reason: result.reason });
+  return Response.json(result.data);
 }

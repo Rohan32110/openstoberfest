@@ -11,7 +11,7 @@ import Flashcards from "@/components/Flashcards";
 import Mascot from "@/components/Mascot";
 import MicButton, { type MicState } from "@/components/MicButton";
 import Modal from "@/components/Modal";
-import { Onboarding, RateLimited, Settings, type Theme } from "@/components/Popups";
+import { OfflineGuide, Onboarding, RateLimited, Settings, type Theme } from "@/components/Popups";
 import SyllabusPicker from "@/components/SyllabusPicker";
 import { PERSONAS, getPersona, type PersonaId } from "@/lib/personas";
 import { splitPoints } from "@/lib/points";
@@ -54,7 +54,7 @@ export default function Rewise() {
   const [error, setError] = useState("");
   const [mic, setMic] = useState<MicState>("idle");
   const [serverSpeech, setServerSpeech] = useState(false);
-  const [popup, setPopup] = useState<"none" | "onboarding" | "settings" | "rateLimit" | "history" | "cards">("none");
+  const [popup, setPopup] = useState<"none" | "onboarding" | "settings" | "rateLimit" | "history" | "cards" | "offline">("none");
 
   // Apply the theme to <html>; the CSS swaps colours via data-theme.
   // (layout.tsx does the same before first paint to avoid a flash.)
@@ -71,12 +71,13 @@ export default function Rewise() {
     fetch("/api/speech-status").then((r) => r.json()).then((d) => setServerSpeech(Boolean(d.available))).catch(() => {});
   }, []);
 
-  // First visit ever: show the onboarding popup after 5 seconds.
+  // First visit ever: once the user has entered their name, show the
+  // onboarding popup after 5 seconds (never on top of the name screen).
   useEffect(() => {
-    if (!ready || onboarded) return;
+    if (!ready || onboarded || !name) return;
     const id = setTimeout(() => setPopup((p) => (p === "none" ? "onboarding" : p)), ONBOARDING_DELAY_MS);
     return () => clearTimeout(id);
-  }, [ready, onboarded]);
+  }, [ready, onboarded, name]);
 
   // Timer: counts up while the user is typing or talking. Display only.
   const composing = draft.length > 0 || mic === "recording";
@@ -218,7 +219,7 @@ export default function Rewise() {
             <span className="hidden shrink-0 text-zinc-400 sm:inline">· with {p.name}</span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button role="switch" aria-checked={offline} onClick={() => setOffline(!offline)}
+            <button role="switch" aria-checked={offline} onClick={toggleOffline}
               title="Offline uses a local Ollama model. Works only when running Rewise on your own computer."
               className={`mr-1 rounded-full border px-3 py-1.5 text-xs transition ${focus} ${
                 offline ? "border-white bg-white text-black" : "border-white/15 text-zinc-200 hover:bg-white/10"}`}>
@@ -328,12 +329,27 @@ export default function Rewise() {
           </form>
           <p className="mt-2 text-center text-[11px] text-zinc-400">
             {offline
-              ? "Offline: replies come from Gemma 3 1B running on this computer via Ollama. Voice input is off."
+              ? <>Offline: replies come from Gemma 3 1B on this computer via Ollama. Voice input is off.{" "}
+                  <button type="button" onClick={() => setPopup("offline")} className="underline underline-offset-2 hover:text-white">Setup guide</button></>
               : "Rewise can make mistakes. Check important facts against your course material."}
           </p>
         </footer>
       </div>
     );
+  }
+
+  // Turning Offline on: if this server can't reach Ollama (always the case on
+  // the deployed site), show the setup guide so the user knows what to do.
+  async function toggleOffline() {
+    const next = !offline;
+    setOffline(next);
+    if (!next) return;
+    try {
+      const data = await (await fetch("/api/ollama-status")).json();
+      if (!data.available || !data.hasModel) setPopup("offline");
+    } catch {
+      setPopup("offline");
+    }
   }
 
   function newConcept() {
@@ -442,6 +458,7 @@ export default function Rewise() {
           onSave={(k) => { setGroqKey(k.groq); setSpeechmaticsKey(k.speechmatics); setElevenLabsKey(k.elevenlabs); }}
           onClose={closePopup} />
       )}
+      {popup === "offline" && <OfflineGuide onClose={closePopup} />}
       {popup === "rateLimit" && <RateLimited onSave={setGroqKey} onClose={closePopup} />}
       {popup === "history" && session && (
         <Modal title="Conversation" onClose={closePopup}>

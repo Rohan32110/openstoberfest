@@ -96,6 +96,118 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ---------- Offline setup guide ----------
+// Offline mode runs the AI on the user's own computer with Ollama. These four
+// pictures + commands walk them through it; "Check again" asks the server
+// whether it can now reach Ollama.
+
+const REPO_URL = "https://github.com/Rohan32110/openstoberfest";
+
+// 1. A download arrow dropping into a tray.
+function InstallArt() {
+  return (
+    <svg viewBox="0 0 120 72" className="h-full w-full" aria-hidden>
+      <g className="ob-drop">
+        <path d="M60 10v26" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+        <path d="M49 27l11 11 11-11" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+      <path d="M38 46v10h44V46" fill="none" stroke="#EF9F27" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// 2. A terminal downloading the model, with a blinking cursor and progress bar.
+function PullArt() {
+  return (
+    <svg viewBox="0 0 120 72" className="h-full w-full" aria-hidden>
+      <rect x="10" y="6" width="100" height="60" rx="8" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeOpacity="0.25" />
+      <text x="18" y="26" fontSize="9" fontFamily="monospace" fill="currentColor">$ ollama pull</text>
+      <rect x="84" y="19" width="5" height="9" fill="currentColor" className="ob-blink" />
+      <rect x="18" y="44" width="84" height="5" rx="2.5" fill="currentColor" opacity="0.15" />
+      <rect x="18" y="44" width="84" height="5" rx="2.5" fill="#1D9E75" className="ob-fill" />
+    </svg>
+  );
+}
+
+// 3. A laptop running Rewise locally (the "localhost" dot pulses).
+function LocalArt() {
+  return (
+    <svg viewBox="0 0 120 72" className="h-full w-full" aria-hidden>
+      <rect x="26" y="8" width="68" height="44" rx="5" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeOpacity="0.35" strokeWidth="1.5" />
+      <path d="M16 58h88" stroke="currentColor" strokeOpacity="0.35" strokeWidth="4" strokeLinecap="round" />
+      <circle cx="60" cy="30" r="9" fill="#534AB7" className="ob-breathe" />
+      <text x="60" y="47" textAnchor="middle" fontSize="7" fontFamily="monospace" fill="currentColor">localhost</text>
+    </svg>
+  );
+}
+
+// 4. The Offline switch sliding on.
+function ToggleArt() {
+  return (
+    <svg viewBox="0 0 120 72" className="h-full w-full" aria-hidden>
+      <rect x="30" y="22" width="60" height="28" rx="14" fill="#1D9E75" className="ob-track" />
+      <circle cx="44" cy="36" r="10" fill="#ffffff" className="ob-knob" />
+    </svg>
+  );
+}
+
+const OFFLINE_STEPS = [
+  { title: "Install Ollama", text: "Free app that runs AI models on your computer.", code: "ollama.com/download", Art: InstallArt },
+  { title: "Get the model", text: "Downloads Gemma 3 1B (about 800 MB), once.", code: "ollama pull gemma3:1b", Art: PullArt },
+  { title: "Run Rewise locally", text: "Clone the repo, then start it and open localhost:3000.", code: "npm install && npm run dev", Art: LocalArt },
+  { title: "Turn Offline on", text: "Replies now come from your own computer. No internet needed for the AI.", code: "Offline: on", Art: ToggleArt },
+];
+
+export function OfflineGuide({ onClose }: { onClose: () => void }) {
+  const [status, setStatus] = useState<"idle" | "checking" | "ready" | "noModel" | "missing">("idle");
+
+  async function check() {
+    setStatus("checking");
+    try {
+      const data = await (await fetch("/api/ollama-status")).json();
+      setStatus(data.available ? (data.hasModel ? "ready" : "noModel") : "missing");
+    } catch {
+      setStatus("missing");
+    }
+  }
+
+  const message = {
+    idle: "",
+    checking: "Checking…",
+    ready: "Ollama and Gemma 3 1B found. Offline mode is ready.",
+    noModel: "Ollama is running, but the model is missing. Run step 2.",
+    missing: "Ollama isn't reachable from here. Offline only works when Rewise runs on your own computer (step 3).",
+  }[status];
+
+  return (
+    <Modal title="Use Rewise offline" onClose={onClose} wide>
+      <p className="mb-4 text-sm text-zinc-300">
+        Offline mode runs the AI on your own computer, so it works without internet. It needs a one-time setup:
+      </p>
+      <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {OFFLINE_STEPS.map(({ title, text, code, Art }, i) => (
+          <li key={title} className="flex flex-col rounded-3xl border border-white/10 bg-white/3 p-4">
+            <div className="mb-3 h-20 rounded-2xl bg-white/4 p-2 text-zinc-200"><Art /></div>
+            <p className="text-sm font-semibold"><span className="mr-2 text-zinc-400">{i + 1}</span>{title}</p>
+            <p className="mt-1 flex-1 text-sm leading-relaxed text-zinc-300">{text}</p>
+            <code className="mt-3 block select-all break-all rounded-xl bg-black/40 px-3 py-2 font-mono text-xs text-zinc-100">{code}</code>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-4 text-xs text-zinc-300">
+        Step 3 in full: <code className="select-all font-mono text-zinc-100">git clone {REPO_URL}</code>, open the folder, then run the command.
+      </p>
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <p role="status" className={`text-sm ${status === "ready" ? "text-[var(--success)]" : "text-zinc-300"}`}>{message}</p>
+        <div className="flex gap-2">
+          <button className={ghost} onClick={check} disabled={status === "checking"}>Check again</button>
+          <button className={primary} onClick={onClose}>Got it</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ---------- Settings ----------
 type Keys = { groq: string; speechmatics: string; elevenlabs: string };
 export type Theme = "system" | "light" | "dark";

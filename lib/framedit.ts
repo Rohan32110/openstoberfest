@@ -17,31 +17,37 @@ const clean = (v: string | undefined) => (v ?? "").trim().replace(/^["']|["']$/g
 
 export const isCourseId = (v: string | null) => v !== null && /^[1-9]\d{0,9}$/.test(v);
 
-// Calls Framedit with a 15s timeout. Returns the JSON on a 200, otherwise null.
-// Only successful answers are cached; failures are retried on the next request.
+// What a Framedit call gives back: the JSON on success, or a short reason on
+// failure ("not_configured", "upstream_403", "TimeoutError"...). The reason is
+// safe to show: it never contains the URL or the key.
+export type FrameditResult = { ok: true; data: unknown } | { ok: false; reason: string };
+
+// Calls Framedit with a 15s timeout. Only successful answers are cached;
+// failures are retried on the next request.
 // `label` ("courses" / "syllabus") is all that goes in logs - never the key.
-export async function frameditGet(label: string, params: URLSearchParams): Promise<unknown | null> {
+export async function frameditGet(label: string, params: URLSearchParams): Promise<FrameditResult> {
   const base = clean(process.env.FRAMEDIT_API_URL).replace(/\/+$/, ""); // tolerate a trailing slash
   const key = clean(process.env.FRAMEDIT_EXPORT_KEY);
   if (!base || !key) {
     console.warn(`[framedit] ${label} not configured`);
-    return null;
+    return { ok: false, reason: "not_configured" };
   }
   const url = `${base}/api/export/${label}?${params.toString()}`;
   const hit = cache.get(url);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.data;
+  if (hit && Date.now() - hit.at < CACHE_MS) return { ok: true, data: hit.data };
 
   try {
     const res = await fetch(url, { headers: { "x-export-key": key }, signal: AbortSignal.timeout(15_000), cache: "no-store" });
     if (!res.ok) {
       console.warn(`[framedit] ${label} ${res.status}`);
-      return null;
+      return { ok: false, reason: `upstream_${res.status}` };
     }
     const data = await res.json();
     cache.set(url, { at: Date.now(), data });
-    return data;
+    return { ok: true, data };
   } catch (err) {
-    console.warn(`[framedit] ${label} ${(err as Error).name}`); // e.g. TimeoutError, never the URL/key
-    return null;
+    const reason = (err as Error).name; // e.g. TimeoutError, SyntaxError - never the URL/key
+    console.warn(`[framedit] ${label} ${reason}`);
+    return { ok: false, reason };
   }
 }
