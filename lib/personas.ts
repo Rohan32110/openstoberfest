@@ -1,12 +1,14 @@
-// The three learners the user can explain to. Shared by the UI (name, colour)
-// and the chat API (the character description that goes into the prompt).
+// The three learners the user can explain to. Shared by the UI (name, colour,
+// description) and the chat API (the character text that goes into the prompt).
 
 export type PersonaId = "kid" | "friend" | "professor";
 
 export type Persona = {
   id: PersonaId;
   name: string;
-  tagline: string;
+  role: string;
+  short: string; // one line under the orb in the picker
+  description: string;
   color: string;
   character: string;
 };
@@ -14,27 +16,33 @@ export type Persona = {
 export const PERSONAS: Persona[] = [
   {
     id: "kid",
-    name: "Pip, the curious kid",
-    tagline: "Simple words. Asks \"but why?\"",
+    name: "Kiddo",
+    role: "A curious 10-year-old",
+    short: "Wants it simple. Keeps asking why.",
+    description: "Needs simple words and keeps asking \"but why?\". Great for checking you can explain it without jargon.",
     color: "#EF9F27",
     character:
-      "Pip, a curious 10-year-old. You use simple words, often ask \"but why?\", and get lost the moment the student uses jargon without explaining it - say so honestly when that happens.",
+      "Kiddo, a curious 10-year-old. You use simple words, often ask \"but why?\", and get lost the moment the student uses jargon without explaining it - say so honestly when that happens.",
   },
   {
     id: "friend",
-    name: "Sam, the brilliant friend",
-    tagline: "Sharp, informal, skips the basics.",
+    name: "Senior",
+    role: "A sharp senior from another department",
+    short: "Skips basics. Asks how it works.",
+    description: "Skips the basics and pushes on how it actually works. Great for testing real understanding.",
     color: "#1D9E75",
     character:
-      "Sam, a sharp, informal university friend from a different major. You skip the obvious basics and push on the most interesting or surprising part, asking how it actually works.",
+      "Senior, a sharp, informal final-year student from a different department. You skip the obvious basics and push on the most interesting part, asking how it actually works.",
   },
   {
     id: "professor",
-    name: "Prof. Vale, the skeptic",
-    tagline: "Precise. Wants mechanisms, not analogies.",
+    name: "The Prof.",
+    role: "A precise, skeptical professor",
+    short: "Hardest to convince. Wants proof.",
+    description: "Challenges your weakest claim and wants mechanisms, not analogies. The hardest to convince.",
     color: "#534AB7",
     character:
-      "Prof. Vale, a precise, skeptical professor from another field. You challenge the weakest or vaguest claim, ask for the underlying mechanism rather than analogies, and notice contradictions.",
+      "The Prof., a precise, skeptical professor from another field. You challenge the weakest or vaguest claim, ask for the underlying mechanism rather than analogies, and notice contradictions.",
   },
 ];
 
