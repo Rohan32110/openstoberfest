@@ -1,26 +1,107 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0b0b10;
+  --foreground: #ececf1;
+  --surface: #15151d;
+  --muted: #9a9aab;
+  --success: #34d399;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark; /* dark scrollbars and form controls */
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* ---------- Mascot ---------- */
+.mascot-wrap {
+  width: 140px;
+  height: 140px;
+  transition: filter 0.8s ease;
+}
+.mascot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.mascot-layer {
+  position: absolute;
+  inset: 0;
+  border-radius: 60% 40% 55% 45% / 55% 45% 60% 40%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    color-mix(in srgb, var(--c) 55%, white),
+    var(--c) 60%,
+    color-mix(in srgb, var(--c) 70%, black)
+  );
+  transition: background 0.6s ease;
+}
+/* Soft glow behind the body. */
+.mascot-layer:nth-child(2) {
+  inset: -10px;
+  opacity: 0.35;
+  filter: blur(16px);
+}
+/* Lighter blurred core on top. */
+.mascot-layer:nth-child(3) {
+  inset: 14px;
+  opacity: 0.45;
+  filter: blur(8px);
+  background: color-mix(in srgb, var(--c) 40%, white);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mascot {
+    animation: breathe var(--morph) ease-in-out infinite;
+  }
+  .mascot-layer {
+    animation: morph var(--morph) ease-in-out infinite;
+  }
+  .mascot-layer:nth-child(2) {
+    animation-direction: reverse;
+    animation-duration: calc(var(--morph) * 1.3);
+  }
+  .mascot-layer:nth-child(3) {
+    animation-duration: calc(var(--morph) * 0.8);
+  }
+  /* High confusion: the whole blob trembles. */
+  .mascot-wrap[data-jitter="true"] {
+    animation: jitter 0.22s steps(2, end) infinite;
+  }
+  /* Waiting for the AI: the glow pulses. */
+  .mascot[data-thinking="true"] .mascot-layer:nth-child(2) {
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+@keyframes morph {
+  0%, 100% { border-radius: 60% 40% 55% 45% / 55% 45% 60% 40%; }
+  33% { border-radius: 45% 55% 40% 60% / 60% 40% 55% 45%; }
+  66% { border-radius: 55% 45% 60% 40% / 40% 60% 45% 55%; }
+}
+@keyframes jitter {
+  0% { transform: translate(1px, -1px) rotate(-1deg); }
+  100% { transform: translate(-1px, 1px) rotate(1deg); }
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.35; }
+  50% { transform: scale(1.25); opacity: 0.7; }
 }
